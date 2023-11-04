@@ -62,16 +62,10 @@ use super::parameters::*;
 /// * (β, τ, τ<sup>2</sup>, ..., τ<sup>2<sup>21</sup> - 1</sup>)<sub>2</sub>
 #[derive(Eq, Clone)]
 pub struct Accumulator<E: Engine, P: PowersOfTauParameters> {
-    /// tau^0, tau^1, tau^2, ..., tau^{TAU_POWERS_G1_LENGTH - 1}
+    /// tau^0, tau^1, tau^2, ..., tau^{TAU_POWERS_MAX}
     pub tau_powers_g1: Vec<E::G1Affine>,
-    /// tau^0, tau^1, tau^2, ..., tau^{TAU_POWERS_LENGTH - 1}
+    /// tau^0, tau^1, tau^2, ..., tau^{TAU_POWERS_MAX}
     pub tau_powers_g2: Vec<E::G2Affine>,
-    /// alpha * tau^0, alpha * tau^1, alpha * tau^2, ..., alpha * tau^{TAU_POWERS_LENGTH - 1}
-    pub alpha_tau_powers_g1: Vec<E::G1Affine>,
-    /// beta * tau^0, beta * tau^1, beta * tau^2, ..., beta * tau^{TAU_POWERS_LENGTH - 1}
-    pub beta_tau_powers_g1: Vec<E::G1Affine>,
-    /// beta
-    pub beta_g2: E::G2Affine,
     /// Keep parameters here
     pub parameters: P
 }
@@ -79,10 +73,7 @@ pub struct Accumulator<E: Engine, P: PowersOfTauParameters> {
 impl<E: Engine, P: PowersOfTauParameters> PartialEq for Accumulator<E, P> {
     fn eq(&self, other: &Accumulator<E, P>) -> bool {
         self.tau_powers_g1.eq(&other.tau_powers_g1) &&
-        self.tau_powers_g2.eq(&other.tau_powers_g2) &&
-        self.alpha_tau_powers_g1.eq(&other.alpha_tau_powers_g1) &&
-        self.beta_tau_powers_g1.eq(&other.beta_tau_powers_g1) && 
-        self.beta_g2 == other.beta_g2
+        self.tau_powers_g2.eq(&other.tau_powers_g2) 
     }
 }
 
@@ -90,11 +81,8 @@ impl<E:Engine, P: PowersOfTauParameters> Accumulator<E, P> {
     /// Constructs an "initial" accumulator with τ = 1, α = 1, β = 1.
     pub fn new(parameters: P) -> Self {
         Accumulator {
-            tau_powers_g1: vec![E::G1Affine::one(); P::TAU_POWERS_G1_LENGTH],
+            tau_powers_g1: vec![E::G1Affine::one(); P::TAU_POWERS_LENGTH],
             tau_powers_g2: vec![E::G2Affine::one(); P::TAU_POWERS_LENGTH],
-            alpha_tau_powers_g1: vec![E::G1Affine::one(); P::TAU_POWERS_LENGTH],
-            beta_tau_powers_g1: vec![E::G1Affine::one(); P::TAU_POWERS_LENGTH],
-            beta_g2: E::G2Affine::one(),
             parameters: parameters
         }
     }
@@ -121,9 +109,6 @@ impl<E:Engine, P: PowersOfTauParameters> Accumulator<E, P> {
 
         write_all(writer, &self.tau_powers_g1, compression)?;
         write_all(writer, &self.tau_powers_g2, compression)?;
-        write_all(writer, &self.alpha_tau_powers_g1, compression)?;
-        write_all(writer, &self.beta_tau_powers_g1, compression)?;
-        write_all(writer, &[self.beta_g2], compression)?;
 
         Ok(())
     }
@@ -225,18 +210,12 @@ impl<E:Engine, P: PowersOfTauParameters> Accumulator<E, P> {
             }
         }
 
-        let tau_powers_g1 = read_all::<E, _, _>(reader, P::TAU_POWERS_G1_LENGTH, compression, checked)?;
+        let tau_powers_g1 = read_all::<E, _, _>(reader, P::TAU_POWERS_LENGTH, compression, checked)?;
         let tau_powers_g2 = read_all::<E, _, _>(reader, P::TAU_POWERS_LENGTH, compression, checked)?;
-        let alpha_tau_powers_g1 = read_all::<E, _, _>(reader, P::TAU_POWERS_LENGTH, compression, checked)?;
-        let beta_tau_powers_g1 = read_all::<E, _, _>(reader, P::TAU_POWERS_LENGTH, compression, checked)?;
-        let beta_g2 = read_all::<E, _, _>(reader, 1, compression, checked)?[0];
 
         Ok(Accumulator {
             tau_powers_g1: tau_powers_g1,
             tau_powers_g2: tau_powers_g2,
-            alpha_tau_powers_g1: alpha_tau_powers_g1,
-            beta_tau_powers_g1: beta_tau_powers_g1,
-            beta_g2: beta_g2,
             parameters: parameters
         })
     }
@@ -245,8 +224,8 @@ impl<E:Engine, P: PowersOfTauParameters> Accumulator<E, P> {
     pub fn transform(&mut self, key: &PrivateKey<E>)
     {
         // Construct the powers of tau
-        let mut taupowers = vec![E::Fr::zero(); P::TAU_POWERS_G1_LENGTH];
-        let chunk_size = P::TAU_POWERS_G1_LENGTH / num_cpus::get();
+        let mut taupowers = vec![E::Fr::zero(); P::TAU_POWERS_LENGTH];
+        let chunk_size = P::TAU_POWERS_LENGTH / num_cpus::get();
 
         // Construct exponents in parallel
         crossbeam::scope(|scope| {
@@ -311,9 +290,6 @@ impl<E:Engine, P: PowersOfTauParameters> Accumulator<E, P> {
 
         batch_exp::<E, _>(&mut self.tau_powers_g1, &taupowers[0..], None);
         batch_exp::<E, _>(&mut self.tau_powers_g2, &taupowers[0..P::TAU_POWERS_LENGTH], None);
-        batch_exp::<E, _>(&mut self.alpha_tau_powers_g1, &taupowers[0..P::TAU_POWERS_LENGTH], Some(&key.alpha));
-        batch_exp::<E, _>(&mut self.beta_tau_powers_g1, &taupowers[0..P::TAU_POWERS_LENGTH], Some(&key.beta));
-        self.beta_g2 = self.beta_g2.mul(key.beta).into_affine();
     }
 }
 
@@ -332,19 +308,11 @@ pub fn verify_transform<E: Engine, P: PowersOfTauParameters>(before: &Accumulato
     };
 
     let tau_g2_s = compute_g2_s(key.tau_g1.0, key.tau_g1.1, 0);
-    let alpha_g2_s = compute_g2_s(key.alpha_g1.0, key.alpha_g1.1, 1);
-    let beta_g2_s = compute_g2_s(key.beta_g1.0, key.beta_g1.1, 2);
 
     // Check the proofs-of-knowledge for tau/alpha/beta
     
     // g1^s / g1^(s*x) = g2^s / g2^(s*x)
     if !same_ratio(key.tau_g1, (tau_g2_s, key.tau_g2)) {
-        return false;
-    }
-    if !same_ratio(key.alpha_g1, (alpha_g2_s, key.alpha_g2)) {
-        return false;
-    }
-    if !same_ratio(key.beta_g1, (beta_g2_s, key.beta_g2)) {
         return false;
     }
 
@@ -361,30 +329,13 @@ pub fn verify_transform<E: Engine, P: PowersOfTauParameters>(before: &Accumulato
         return false;
     }
 
-    // Did the participant multiply the previous alpha by the new one?
-    if !same_ratio((before.alpha_tau_powers_g1[0], after.alpha_tau_powers_g1[0]), (alpha_g2_s, key.alpha_g2)) {
-        return false;
-    }
 
-    // Did the participant multiply the previous beta by the new one?
-    if !same_ratio((before.beta_tau_powers_g1[0], after.beta_tau_powers_g1[0]), (beta_g2_s, key.beta_g2)) {
-        return false;
-    }
-    if !same_ratio((before.beta_tau_powers_g1[0], after.beta_tau_powers_g1[0]), (before.beta_g2, after.beta_g2)) {
-        return false;
-    }
 
     // Are the powers of tau correct?
     if !same_ratio(power_pairs(&after.tau_powers_g1), (after.tau_powers_g2[0], after.tau_powers_g2[1])) {
         return false;
     }
     if !same_ratio(power_pairs(&after.tau_powers_g2), (after.tau_powers_g1[0], after.tau_powers_g1[1])) {
-        return false;
-    }
-    if !same_ratio(power_pairs(&after.alpha_tau_powers_g1), (after.tau_powers_g2[0], after.tau_powers_g2[1])) {
-        return false;
-    }
-    if !same_ratio(power_pairs(&after.beta_tau_powers_g1), (after.tau_powers_g2[0], after.tau_powers_g2[1])) {
         return false;
     }
 
