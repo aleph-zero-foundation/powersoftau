@@ -50,7 +50,7 @@ impl<E: Engine> PartialEq for PublicKey<E> {
 
 /// Contains the secrets τ, α and β that the participant of the ceremony must destroy.
 pub struct PrivateKey<E: Engine> {
-    pub tau: E::Fr,
+    pub tau: E::Fr
 }
 
 /// Constructs a keypair given an RNG and a 64-byte transcript `digest`.
@@ -133,7 +133,7 @@ impl<E: Engine> PublicKey<E> {
 
         Ok(PublicKey {
             tau_g1: (tau_g1_s, tau_g1_s_tau),
-            tau_g2
+            tau_g2: tau_g2
         })
     }
 }

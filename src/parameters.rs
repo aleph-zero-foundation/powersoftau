@@ -41,7 +41,7 @@ pub trait PowersOfTauParameters: Clone {
                                              Self::HASH_SIZE; // blake2b hash of previous contribution
 
     const PUBLIC_KEY_SIZE: usize =   Self::G2_UNCOMPRESSED_BYTE_SIZE + // tau, alpha, and beta in g2
-                                      Self::G1_UNCOMPRESSED_BYTE_SIZE; // (s1, s1*tau), (s2, s2*alpha), (s3, s3*beta) in g1
+                                      2*Self::G1_UNCOMPRESSED_BYTE_SIZE; // (s1, s1*tau), (s2, s2*alpha), (s3, s3*beta) in g1
 
     const CONTRIBUTION_BYTE_SIZE: usize = (Self::TAU_POWERS_LENGTH * Self::G1_COMPRESSED_BYTE_SIZE) + // g1 tau powers
                                             (Self::TAU_POWERS_LENGTH * Self::G2_COMPRESSED_BYTE_SIZE) + // g2 tau powers
