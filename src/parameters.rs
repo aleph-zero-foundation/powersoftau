@@ -106,5 +106,5 @@ impl From<GroupDecodingError> for DeserializationError {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ElementType {
     TauG1,
-    TauG2,
+    TauG2
 }

@@ -20,9 +20,7 @@ use std::io::Write;
 
 use powersoftau::parameters::PowersOfTauParameters;
 
-#[macro_use]
-extern crate hex_literal;
-
+use hex_literal::hex;
 const INPUT_IS_COMPRESSED: UseCompression = UseCompression::No;
 const COMPRESS_THE_OUTPUT: UseCompression = UseCompression::Yes;
 const CHECK_INPUT_CORRECTNESS: CheckForCorrectness = CheckForCorrectness::No;
@@ -30,7 +28,7 @@ const CHECK_INPUT_CORRECTNESS: CheckForCorrectness = CheckForCorrectness::No;
 
 fn main() {
     println!("Will contribute a random beacon to accumulator for 2^{} powers of tau", Bn256CeremonyParameters::REQUIRED_POWER);
-    println!("In total will generate up to {} powers", Bn256CeremonyParameters::TAU_POWERS_G1_LENGTH);
+    println!("In total will generate up to {} powers", Bn256CeremonyParameters::TAU_POWERS_LENGTH);
     
     // Create an RNG based on the outcome of the random beacon
     let mut rng = {

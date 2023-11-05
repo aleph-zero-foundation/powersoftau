@@ -130,14 +130,14 @@ impl<E:Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
             ElementType::TauG1 => {
                 let mut position = 0;
                 position += g1_size * index;
-                assert!(index < P::TAU_POWERS_LENGTH, format!("Index of TauG1 element written must not exceed {}, while it's {}", P::TAU_POWERS_LENGTH, index));
+                assert!(index < P::TAU_POWERS_LENGTH, "Index of TauG1 element written must not exceed {}, while it's {}", P::TAU_POWERS_LENGTH, index);
 
                 position
             },
             ElementType::TauG2 => {
                 let mut position = 0;
                 position += g1_size * required_power;
-                assert!(index < P::TAU_POWERS_LENGTH, format!("Index of TauG2 element written must not exceed {}, while it's {}", P::TAU_POWERS_LENGTH, index));
+                assert!(index < P::TAU_POWERS_LENGTH, "Index of TauG2 element written must not exceed {}, while it's {}", P::TAU_POWERS_LENGTH, index);
                 position += g2_size * index;
 
                 position
@@ -193,8 +193,6 @@ impl<E:Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
         assert_eq!(digest.len(), 64);
 
         let tau_g2_s = compute_g2_s::<E>(&digest, &key.tau_g1.0, &key.tau_g1.1, 0);
-        let alpha_g2_s = compute_g2_s::<E>(&digest, &key.alpha_g1.0, &key.alpha_g1.1, 1);
-        let beta_g2_s = compute_g2_s::<E>(&digest, &key.beta_g1.0, &key.beta_g1.1, 2);
 
         // Check the proofs-of-knowledge for tau/alpha/beta
 
@@ -391,6 +389,11 @@ impl<E:Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
                         return Ok(vec![]);
                     }
                 },
+                ElementType::TauG2 => {
+                    if index >= P::TAU_POWERS_LENGTH {
+                        return Ok(vec![]);
+                    }
+                }
             };
             let position = Self::calculate_mmap_position(index, element_type, compression);
             let element_size = Self::get_size(element_type, compression);
@@ -545,7 +548,7 @@ impl<E:Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
         Ok(())
     }
 
-
+}
 impl<E:Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
     /// Transforms the accumulator with a private key.
     /// Due to large amount of data in a previous accumulator even in the compressed form
@@ -640,10 +643,6 @@ impl<E:Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
 
                 batch_exp::<E, _>(&mut accumulator.tau_powers_g1, &taupowers[0..], None);
                 batch_exp::<E, _>(&mut accumulator.tau_powers_g2, &taupowers[0..], None);
-                batch_exp::<E, _>(&mut accumulator.alpha_tau_powers_g1, &taupowers[0..], Some(&key.alpha));
-                batch_exp::<E, _>(&mut accumulator.beta_tau_powers_g1, &taupowers[0..], Some(&key.beta));
-                accumulator.beta_g2 = accumulator.beta_g2.mul(key.beta).into_affine();
-                assert!(!accumulator.beta_g2.is_zero(), "your contribution happed to produce a point at infinity, please re-run");
                 accumulator.write_chunk(start, compress_the_output, output_map)?;
 
                 println!("Done processing {} powers of tau", end);
@@ -652,40 +651,6 @@ impl<E:Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
             }
         }
 
-        for chunk in &(P::TAU_POWERS_LENGTH..P::TAU_POWERS_G1_LENGTH).into_iter().chunks(P::EMPIRICAL_BATCH_SIZE) {
-            if let MinMax(start, end) = chunk.minmax() {
-                let size = end - start + 1;
-                accumulator.read_chunk(start, size, input_is_compressed, check_input_for_correctness, &input_map).expect("must read a first chunk");
-                assert_eq!(accumulator.tau_powers_g2.len(), 0, "during rest of tau g1 generation tau g2 must be empty");
-
-                // Construct the powers of tau
-                let mut taupowers = vec![E::Fr::zero(); size];
-                let chunk_size = size / num_cpus::get();
-
-                // Construct exponents in parallel
-                crossbeam::scope(|scope| {
-                    for (i, taupowers) in taupowers.chunks_mut(chunk_size).enumerate() {
-                        scope.spawn(move || {
-                            let mut acc = key.tau.pow(&[(start + i * chunk_size) as u64]);
-
-                            for t in taupowers {
-                                *t = acc;
-                                acc.mul_assign(&key.tau);
-                            }
-                        });
-                    }
-                });
-
-                batch_exp::<E, _>(&mut accumulator.tau_powers_g1, &taupowers[0..], None);
-                accumulator.beta_g2 = accumulator.beta_g2.mul(key.beta).into_affine();
-                assert!(!accumulator.beta_g2.is_zero(), "your contribution happed to produce a point at infinity, please re-run");
-                accumulator.write_chunk(start, compress_the_output, output_map)?;
-
-                println!("Done processing {} powers of tau", end);
-            } else {
-                panic!("Chunk does not have a min and max");
-            }
-        }
 
         Ok(())
     }
@@ -717,24 +682,8 @@ impl<E:Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
             }
         }
 
-        for chunk in &(P::TAU_POWERS_LENGTH..P::TAU_POWERS_G1_LENGTH).into_iter().chunks(P::EMPIRICAL_BATCH_SIZE) {
-            if let MinMax(start, end) = chunk.minmax() {
-                let size = end - start + 1;
-                let mut accumulator = Self {
-                    tau_powers_g1: vec![E::G1Affine::one(); size],
-                    tau_powers_g2: vec![],
-                    hash: blank_hash(),
-                    marker: std::marker::PhantomData::<P>{}
-                };
-
-                accumulator.write_chunk(start, compress_the_output, output_map)?;
-                println!("Done processing {} powers of tau", end);
-            } else {
-                panic!("Chunk does not have a min and max");
-            }
-        }
 
         Ok(())
     }
 }
-}
+
