@@ -1,31 +1,31 @@
-extern crate rand;
-extern crate crossbeam;
-extern crate num_cpus;
-extern crate blake2;
-extern crate generic_array;
-extern crate typenum;
-extern crate byteorder;
 extern crate bellman;
-extern crate memmap;
+extern crate blake2;
+extern crate byteorder;
+extern crate crossbeam;
+extern crate generic_array;
 extern crate itertools;
+extern crate memmap;
+extern crate num_cpus;
+extern crate rand;
+extern crate typenum;
 
+use self::bellman::pairing::bn256::Bn256;
+use self::bellman::pairing::ff::{Field, PrimeField};
+use self::bellman::pairing::*;
+use self::blake2::{Blake2b, Digest};
+use self::byteorder::{BigEndian, ReadBytesExt};
+use self::generic_array::GenericArray;
+use self::rand::chacha::ChaChaRng;
+use self::rand::{Rand, Rng, SeedableRng};
+use self::typenum::consts::U64;
 use itertools::Itertools;
 use memmap::{Mmap, MmapMut};
-use self::bellman::pairing::ff::{Field, PrimeField};
-use self::byteorder::{ReadBytesExt, BigEndian};
-use self::rand::{SeedableRng, Rng, Rand};
-use self::rand::chacha::ChaChaRng;
-use self::bellman::pairing::bn256::Bn256;
-use self::bellman::pairing::*;
+use std::fmt;
 use std::io::{self, Read, Write};
 use std::sync::{Arc, Mutex};
-use self::generic_array::GenericArray;
-use self::typenum::consts::U64;
-use self::blake2::{Blake2b, Digest};
-use std::fmt;
 
-use super::utils::*;
 use super::parameters::*;
+use super::utils::*;
 
 /// Contains terms of the form (s<sub>1</sub>, s<sub>1</sub><sup>x</sup>, H(s<sub>1</sub><sup>x</sup>)<sub>2</sub>, H(s<sub>1</sub><sup>x</sup>)<sub>2</sub><sup>x</sup>)
 /// for all x in τ, α and β, and some s chosen randomly by its creator. The function H "hashes into" the group G2. No points in the public key may be the identity.
@@ -37,25 +37,24 @@ use super::parameters::*;
 #[derive(Eq)]
 pub struct PublicKey<E: Engine> {
     pub tau_g1: (E::G1Affine, E::G1Affine),
-    pub tau_g2: E::G2Affine
+    pub tau_g2: E::G2Affine,
 }
 
 impl<E: Engine> PartialEq for PublicKey<E> {
     fn eq(&self, other: &PublicKey<E>) -> bool {
-        self.tau_g1.0 == other.tau_g1.0 &&
-        self.tau_g1.1 == other.tau_g1.1 &&
-        self.tau_g2 == other.tau_g2 
+        self.tau_g1.0 == other.tau_g1.0
+            && self.tau_g1.1 == other.tau_g1.1
+            && self.tau_g2 == other.tau_g2
     }
 }
 
 /// Contains the secrets τ, α and β that the participant of the ceremony must destroy.
 pub struct PrivateKey<E: Engine> {
-    pub tau: E::Fr
+    pub tau: E::Fr,
 }
 
 /// Constructs a keypair given an RNG and a 64-byte transcript `digest`.
-pub fn keypair<R: Rng, E: Engine>(rng: &mut R, digest: &[u8]) -> (PublicKey<E>, PrivateKey<E>)
-{
+pub fn keypair<R: Rng, E: Engine>(rng: &mut R, digest: &[u8]) -> (PublicKey<E>, PrivateKey<E>) {
     assert_eq!(digest.len(), 64);
 
     // tau is a conribution to the "powers of tau", in a set of points of the form "tau^i * G"
@@ -90,18 +89,15 @@ pub fn keypair<R: Rng, E: Engine>(rng: &mut R, digest: &[u8]) -> (PublicKey<E>, 
     (
         PublicKey {
             tau_g1: pk_tau.0,
-            tau_g2: pk_tau.1
+            tau_g2: pk_tau.1,
         },
-        PrivateKey {
-            tau
-        }
+        PrivateKey { tau },
     )
 }
 
 impl<E: Engine> PublicKey<E> {
     /// Serialize the public key. Points are always in uncompressed form.
-    pub fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()>
-    {
+    pub fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         write_point(writer, &self.tau_g1.0, UseCompression::No)?;
         write_point(writer, &self.tau_g1.1, UseCompression::No)?;
 
@@ -112,9 +108,10 @@ impl<E: Engine> PublicKey<E> {
     /// Deserialize the public key. Points are always in uncompressed form, and
     /// always checked, since there aren't very many of them. Does not allow any
     /// points at infinity.
-    pub fn deserialize<R: Read>(reader: &mut R) -> Result<PublicKey<E>, DeserializationError>
-    {
-        fn read_uncompressed<EE: Engine, C: CurveAffine<Engine = EE, Scalar = EE::Fr>, R: Read>(reader: &mut R) -> Result<C, DeserializationError> {
+    pub fn deserialize<R: Read>(reader: &mut R) -> Result<PublicKey<E>, DeserializationError> {
+        fn read_uncompressed<EE: Engine, C: CurveAffine<Engine = EE, Scalar = EE::Fr>, R: Read>(
+            reader: &mut R,
+        ) -> Result<C, DeserializationError> {
             let mut repr = C::Uncompressed::empty();
             reader.read_exact(repr.as_mut())?;
             let v = repr.into_affine()?;
@@ -133,31 +130,26 @@ impl<E: Engine> PublicKey<E> {
 
         Ok(PublicKey {
             tau_g1: (tau_g1_s, tau_g1_s_tau),
-            tau_g2: tau_g2
+            tau_g2: tau_g2,
         })
     }
 }
 
 impl<E: Engine> PublicKey<E> {
-
     /// This function is intended to write the key to the memory map and calculates
     /// a position for writing into the file itself based on information whether
     /// contribution was output in compressed on uncompressed form
     pub fn write<P>(
         &self,
         output_map: &mut MmapMut,
-        accumulator_was_compressed: UseCompression
-    )
-    -> io::Result<()>
-        where P: PowersOfTauParameters
+        accumulator_was_compressed: UseCompression,
+    ) -> io::Result<()>
+    where
+        P: PowersOfTauParameters,
     {
         let mut position = match accumulator_was_compressed {
-            UseCompression::Yes => {
-                P::CONTRIBUTION_BYTE_SIZE - P::PUBLIC_KEY_SIZE
-            },
-            UseCompression::No => {
-                P::ACCUMULATOR_BYTE_SIZE
-            }
+            UseCompression::Yes => P::CONTRIBUTION_BYTE_SIZE - P::PUBLIC_KEY_SIZE,
+            UseCompression::No => P::ACCUMULATOR_BYTE_SIZE,
         };
 
         (&mut output_map[position..]).write(&self.tau_g1.0.into_uncompressed().as_ref())?;
@@ -178,14 +170,20 @@ impl<E: Engine> PublicKey<E> {
     /// points at infinity.
     pub fn read<P>(
         input_map: &Mmap,
-        accumulator_was_compressed: UseCompression
+        accumulator_was_compressed: UseCompression,
     ) -> Result<Self, DeserializationError>
-        where P: PowersOfTauParameters
+    where
+        P: PowersOfTauParameters,
     {
-        fn read_uncompressed<EE: Engine, C: CurveAffine<Engine = EE, Scalar = EE::Fr>>(input_map: &Mmap, position: usize) -> Result<C, DeserializationError> {
+        fn read_uncompressed<EE: Engine, C: CurveAffine<Engine = EE, Scalar = EE::Fr>>(
+            input_map: &Mmap,
+            position: usize,
+        ) -> Result<C, DeserializationError> {
             let mut repr = C::Uncompressed::empty();
             let element_size = C::Uncompressed::size();
-            let memory_slice = input_map.get(position..position+element_size).expect("must read point data from file");
+            let memory_slice = input_map
+                .get(position..position + element_size)
+                .expect("must read point data from file");
             memory_slice.clone().read_exact(repr.as_mut())?;
             let v = repr.into_affine()?;
 
@@ -197,12 +195,8 @@ impl<E: Engine> PublicKey<E> {
         }
 
         let mut position = match accumulator_was_compressed {
-            UseCompression::Yes => {
-                P::CONTRIBUTION_BYTE_SIZE - P::PUBLIC_KEY_SIZE
-            },
-            UseCompression::No => {
-                P::ACCUMULATOR_BYTE_SIZE
-            }
+            UseCompression::Yes => P::CONTRIBUTION_BYTE_SIZE - P::PUBLIC_KEY_SIZE,
+            UseCompression::No => P::ACCUMULATOR_BYTE_SIZE,
         };
 
         let tau_g1_s = read_uncompressed::<E, _>(input_map, position)?;
@@ -215,7 +209,7 @@ impl<E: Engine> PublicKey<E> {
 
         Ok(PublicKey {
             tau_g1: (tau_g1_s, tau_g1_s_tau),
-            tau_g2
+            tau_g2,
         })
     }
 }
