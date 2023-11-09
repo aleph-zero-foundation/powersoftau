@@ -330,29 +330,6 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
             }
         }
 
-        // for chunk in &(P::TAU_POWERS_LENGTH..P::TAU_POWERS_LENGTH).into_iter().chunks(P::EMPIRICAL_BATCH_SIZE) {
-        //     if let MinMax(start, end) = chunk.minmax() {
-        //         // extra 1 to ensure intersection between chunks and ensure we don't overflow
-        //         let size = end - start + 1 + if end == P::TAU_POWERS_G1_LENGTH - 1 { 0 } else { 1 };
-        //         before.read_chunk(start, size, input_is_compressed, check_input_for_correctness, &input_map).expect(&format!("must read a chunk from {} to {} from `challenge`", start, end));
-        //         after.read_chunk(start, size, output_is_compressed, check_output_for_correctness, &output_map).expect(&format!("must read a chunk from {} to {} from `response`", start, end));
-
-        //         assert_eq!(before.tau_powers_g2.len(), 0, "during rest of tau g1 generation tau g2 must be empty");
-        //         assert_eq!(after.tau_powers_g2.len(), 0, "during rest of tau g1 generation tau g2 must be empty");
-
-        //         // Are the powers of tau correct?
-        //         if !same_ratio(power_pairs(&after.tau_powers_g1), (tau_powers_g2_0, tau_powers_g2_1)) {
-        //             println!("Invalid ratio power_pairs(&after.tau_powers_g1), (tau_powers_g2_0, tau_powers_g2_1) in extra TauG1 contribution");
-        //             return false;
-        //         }
-        //         // if start == P::TAU_POWERS_LENGTH {
-        //         //     tau_powers_last_first_chunks[1] = after.tau_powers_g1[0];
-        //         // }
-        //         println!("Done processing {} powers of tau", end);
-        //     } else {
-        //         panic!("Chunk does not have a min and max");
-        //     }
-        // }
         if !same_ratio(
             power_pairs(&tau_powers_last_first_chunks),
             (tau_powers_g2_0, tau_powers_g2_1),
