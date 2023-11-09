@@ -267,7 +267,7 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
         // Read by parts and just verify same ratios. Cause of two fixed variables above with tau_powers_g2_1 = tau_powers_g2_0 ^ s
         // one does not need to care about some overlapping
 
-        let mut tau_powers_last_first_chunks = vec![E::G1Affine::zero(); 2];
+        // let mut tau_powers_last_first_chunks = vec![E::G1Affine::zero(); 2];
         for chunk in &(0..P::TAU_POWERS_LENGTH)
             .into_iter()
             .chunks(P::EMPIRICAL_BATCH_SIZE)
@@ -321,9 +321,9 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
                     println!("Invalid ratio power_pairs(&after.tau_powers_g2), (tau_powers_g1_0, tau_powers_g1_1)");
                     return false;
                 }
-                if end == P::TAU_POWERS_LENGTH - 1 {
-                    tau_powers_last_first_chunks[0] = after.tau_powers_g1[size - 1];
-                }
+                // if end == P::TAU_POWERS_LENGTH - 1 {
+                //     tau_powers_last_first_chunks[0] = after.tau_powers_g1[size - 1];
+                // }
                 println!("Done processing {} powers of tau", end);
             } else {
                 panic!("Chunk does not have a min and max");
