@@ -16,6 +16,7 @@ use memmap::*;
 use std::fs::OpenOptions;
 
 use std::io::{Read, Write};
+use bellman::pairing::ff::ScalarEngine;
 
 use powersoftau::parameters::PowersOfTauParameters;
 
@@ -186,7 +187,10 @@ fn main() {
     }
 
     // Construct our keypair using the RNG we created above
-    let (pubkey, privkey) = keypair(&mut rng, current_accumulator_hash.as_ref());
+
+    // tau is a conribution to the "powers of tau", in a set of points of the form "tau^i * G"
+    let tau = <Bn256 as ScalarEngine>::Fr::from_hex("0x1f8cd6a3d6ef1026a9b58c087935c9b5516c438fe5aaee2d8668b6baba96c605").unwrap();
+    let (pubkey, privkey) = keypair(&mut rng, current_accumulator_hash.as_ref(), tau);
     println!("tau is:{}", privkey.tau);
     // Perform the transformation
     println!("Computing and writing your contribution, this could take a while...");

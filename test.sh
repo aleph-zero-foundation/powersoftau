@@ -1,12 +1,15 @@
-#!/bin/sh
+#!/bin/bash
 
-rm challenge
-rm response
-rm new_challenge
-rm challenge_old
-rm response_old
+set -euo pipefail
+
+cargo build --release --bin new_constrained
+cargo build --release --bin compute_constrained
+cargo build --release --bin verify_transform_constrained
+
+rm -rf challenge
+rm -rf response
+rm -rf new_challenge
 
 cargo run --release --bin new_constrained
 cargo run --release --bin compute_constrained
-RUST_BACKTRACE=1 cargo run --release --bin verify_transform_constrained
-
+cargo run --release --bin verify_transform_constrained
