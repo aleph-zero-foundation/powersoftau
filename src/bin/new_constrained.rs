@@ -18,10 +18,10 @@ use powersoftau::parameters::PowersOfTauParameters;
 const COMPRESS_NEW_CHALLENGE: UseCompression = UseCompression::No;
 
 fn main() {
-    println!(
-        "Will generate an empty accumulator for 2^{} powers of tau",
-        Bn256CeremonyParameters::REQUIRED_POWER
-    );
+    // println!(
+    //     "Will generate an empty accumulator for 2^{} powers of tau",
+    //     Bn256CeremonyParameters::REQUIRED_POWER
+    // );
     println!(
         "In total will generate up to {} powers",
         Bn256CeremonyParameters::TAU_POWERS_LENGTH

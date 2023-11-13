@@ -25,10 +25,10 @@ const COMPRESS_THE_OUTPUT: UseCompression = UseCompression::Yes;
 const CHECK_INPUT_CORRECTNESS: CheckForCorrectness = CheckForCorrectness::No;
 
 fn main() {
-    println!(
-        "Will contribute to accumulator for 2^{} powers of tau",
-        Bn256CeremonyParameters::REQUIRED_POWER
-    );
+    // println!(
+    //     "Will contribute to accumulator for 2^{} powers of tau",
+    //     Bn256CeremonyParameters::REQUIRED_POWER
+    // );
     println!(
         "In total will generate up to {} powers",
         Bn256CeremonyParameters::TAU_POWERS_LENGTH
