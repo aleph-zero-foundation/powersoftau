@@ -152,34 +152,7 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
                 position += g2_size * index;
 
                 position
-            } // ElementType::AlphaG1 => {
-            //     let mut position = 0;
-            //     position += g1_size * required_tau_g1_power;
-            //     position += g2_size * required_power;
-            //     assert!(index < P::TAU_POWERS_LENGTH, format!("Index of AlphaG1 element written must not exceed {}, while it's {}", P::TAU_POWERS_LENGTH, index));
-            //     position += g1_size * index;
-
-            //     position
-            // },
-            // ElementType::BetaG1 => {
-            //     let mut position = 0;
-            //     position += g1_size * required_tau_g1_power;
-            //     position += g2_size * required_power;
-            //     position += g1_size * required_power;
-            //     assert!(index < P::TAU_POWERS_LENGTH, format!("Index of BetaG1 element written must not exceed {}, while it's {}", P::TAU_POWERS_LENGTH, index));
-            //     position += g1_size * index;
-
-            //     position
-            // },
-            // ElementType::BetaG2 => {
-            //     let mut position = 0;
-            //     position += g1_size * required_tau_g1_power;
-            //     position += g2_size * required_power;
-            //     position += g1_size * required_power;
-            //     position += g1_size * required_power;
-
-            //     position
-            // }
+            }
         };
 
         position + P::HASH_SIZE
