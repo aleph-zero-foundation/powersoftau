@@ -54,11 +54,8 @@ pub struct PrivateKey<E: Engine> {
 }
 
 /// Constructs a keypair given an RNG and a 64-byte transcript `digest`.
-pub fn keypair<R: Rng, E: Engine>(rng: &mut R, digest: &[u8]) -> (PublicKey<E>, PrivateKey<E>) {
+pub fn keypair<R: Rng, E: Engine>(rng: &mut R, digest: &[u8], tau: E::Fr) -> (PublicKey<E>, PrivateKey<E>) {
     assert_eq!(digest.len(), 64);
-
-    // tau is a conribution to the "powers of tau", in a set of points of the form "tau^i * G"
-    let tau = E::Fr::rand(rng);
 
     let mut op = |x: E::Fr, personalization: u8| {
         // Sample random g^s

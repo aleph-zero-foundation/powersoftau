@@ -23,7 +23,7 @@ use typenum::consts::U64;
 use super::keypair::*;
 
 pub trait PowersOfTauParameters: Clone {
-    const REQUIRED_POWER: usize;
+    // const REQUIRED_POWER: usize;
 
     const G1_UNCOMPRESSED_BYTE_SIZE: usize;
     const G2_UNCOMPRESSED_BYTE_SIZE: usize;
@@ -32,8 +32,8 @@ pub trait PowersOfTauParameters: Clone {
 
     // In order to commit to subgroup vanishing polynomial we want highest srs
     // power to be 2^n rather than 2^n-1, as in original repo.
-    const TAU_POWERS_MAX: usize = (1 << Self::REQUIRED_POWER);
-    const TAU_POWERS_LENGTH: usize = (1 << Self::REQUIRED_POWER);
+    const TAU_POWERS_MAX: usize = (1 << 28) * 9 * 29;
+    const TAU_POWERS_LENGTH: usize = Self::TAU_POWERS_MAX + 1;
 
     const ACCUMULATOR_BYTE_SIZE: usize = (Self::TAU_POWERS_LENGTH * Self::G1_UNCOMPRESSED_BYTE_SIZE) + // g1 tau powers
                                             (Self::TAU_POWERS_LENGTH * Self::G2_UNCOMPRESSED_BYTE_SIZE) + // g2 tau powers

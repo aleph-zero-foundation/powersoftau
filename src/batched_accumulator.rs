@@ -17,7 +17,7 @@ use bellman::pairing::*;
 use blake2::{Blake2b, Digest};
 use byteorder::{BigEndian, ReadBytesExt};
 use generic_array::GenericArray;
-use itertools::Itertools;
+use itertools::{Itertools, MinMaxResult};
 use memmap::{Mmap, MmapMut};
 use rand::chacha::ChaChaRng;
 use rand::{Rand, Rng, SeedableRng};
@@ -152,34 +152,7 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
                 position += g2_size * index;
 
                 position
-            } // ElementType::AlphaG1 => {
-              //     let mut position = 0;
-              //     position += g1_size * required_tau_g1_power;
-              //     position += g2_size * required_power;
-              //     assert!(index < P::TAU_POWERS_LENGTH, format!("Index of AlphaG1 element written must not exceed {}, while it's {}", P::TAU_POWERS_LENGTH, index));
-              //     position += g1_size * index;
-
-              //     position
-              // },
-              // ElementType::BetaG1 => {
-              //     let mut position = 0;
-              //     position += g1_size * required_tau_g1_power;
-              //     position += g2_size * required_power;
-              //     position += g1_size * required_power;
-              //     assert!(index < P::TAU_POWERS_LENGTH, format!("Index of BetaG1 element written must not exceed {}, while it's {}", P::TAU_POWERS_LENGTH, index));
-              //     position += g1_size * index;
-
-              //     position
-              // },
-              // ElementType::BetaG2 => {
-              //     let mut position = 0;
-              //     position += g1_size * required_tau_g1_power;
-              //     position += g2_size * required_power;
-              //     position += g1_size * required_power;
-              //     position += g1_size * required_power;
-
-              //     position
-              // }
+            }
         };
 
         position + P::HASH_SIZE
@@ -272,62 +245,66 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
             .into_iter()
             .chunks(P::EMPIRICAL_BATCH_SIZE)
         {
-            if let MinMax(start, end) = chunk.minmax() {
-                // extra 1 to ensure intersection between chunks and ensure we don't overflow
-                let size = end - start
-                    + 1
-                    + if end == P::TAU_POWERS_LENGTH - 1 {
-                        0
-                    } else {
-                        1
-                    };
-                before
-                    .read_chunk(
-                        start,
-                        size,
-                        input_is_compressed,
-                        check_input_for_correctness,
-                        &input_map,
-                    )
-                    .expect(&format!(
-                        "must read a chunk from {} to {} from `challenge`",
-                        start, end
-                    ));
-                after
-                    .read_chunk(
-                        start,
-                        size,
-                        output_is_compressed,
-                        check_output_for_correctness,
-                        &output_map,
-                    )
-                    .expect(&format!(
-                        "must read a chunk from {} to {} from `response`",
-                        start, end
-                    ));
+            let (start, end) = match chunk.minmax() {
+                MinMaxResult::NoElements => unreachable!(),
+                MinMaxResult::OneElement(last) => (last, last),
+                MinMax(start, end) => {
+                    (start, end)
+                }
+            };
 
-                // Are the powers of tau correct?
-                if !same_ratio(
-                    power_pairs(&after.tau_powers_g1),
-                    (tau_powers_g2_0, tau_powers_g2_1),
-                ) {
-                    println!("Invalid ratio power_pairs(&after.tau_powers_g1), (tau_powers_g2_0, tau_powers_g2_1)");
-                    return false;
-                }
-                if !same_ratio(
-                    power_pairs(&after.tau_powers_g2),
-                    (tau_powers_g1_0, tau_powers_g1_1),
-                ) {
-                    println!("Invalid ratio power_pairs(&after.tau_powers_g2), (tau_powers_g1_0, tau_powers_g1_1)");
-                    return false;
-                }
-                // if end == P::TAU_POWERS_LENGTH - 1 {
-                //     tau_powers_last_first_chunks[0] = after.tau_powers_g1[size - 1];
-                // }
-                println!("Done processing {} powers of tau", end);
+            // extra 1 to ensure intersection between chunks and ensure we don't overflow
+            let size = end - start
+                + 1
+                + if end == P::TAU_POWERS_LENGTH - 1 {
+                0
             } else {
-                panic!("Chunk does not have a min and max");
+                1
+            };
+            before
+                .read_chunk(
+                    start,
+                    size,
+                    input_is_compressed,
+                    check_input_for_correctness,
+                    &input_map,
+                )
+                .expect(&format!(
+                    "must read a chunk from {} to {} from `challenge`",
+                    start, end
+                ));
+            after
+                .read_chunk(
+                    start,
+                    size,
+                    output_is_compressed,
+                    check_output_for_correctness,
+                    &output_map,
+                )
+                .expect(&format!(
+                    "must read a chunk from {} to {} from `response`",
+                    start, end
+                ));
+
+            // Are the powers of tau correct?
+            if !same_ratio(
+                power_pairs(&after.tau_powers_g1),
+                (tau_powers_g2_0, tau_powers_g2_1),
+            ) {
+                println!("Invalid ratio power_pairs(&after.tau_powers_g1), (tau_powers_g2_0, tau_powers_g2_1)");
+                return false;
             }
+            if !same_ratio(
+                power_pairs(&after.tau_powers_g2),
+                (tau_powers_g1_0, tau_powers_g1_1),
+            ) {
+                println!("Invalid ratio power_pairs(&after.tau_powers_g2), (tau_powers_g1_0, tau_powers_g1_1)");
+                return false;
+            }
+            // if end == P::TAU_POWERS_LENGTH - 1 {
+            //     tau_powers_last_first_chunks[0] = after.tau_powers_g1[size - 1];
+            // }
+            println!("Done processing {} powers of tau", end);
         }
 
         true
@@ -346,40 +323,29 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
             .into_iter()
             .chunks(P::EMPIRICAL_BATCH_SIZE)
         {
-            if let MinMax(start, end) = chunk.minmax() {
-                let size = end - start + 1;
-                accumulator
-                    .read_chunk(
-                        start,
-                        size,
-                        UseCompression::Yes,
-                        check_input_for_correctness,
-                        &input_map,
-                    )
-                    .expect(&format!(
-                        "must read a chunk from {} to {} from source of decompression",
-                        start, end
-                    ));
-                accumulator.write_chunk(start, UseCompression::No, output_map)?;
-            } else {
-                panic!("Chunk does not have a min and max");
-            }
+            let (start, end) = match chunk.minmax() {
+                MinMaxResult::NoElements => unreachable!(),
+                MinMaxResult::OneElement(last) => (last, last),
+                MinMax(start, end) => {
+                    (start, end)
+                }
+            };
+
+            let size = end - start + 1;
+            accumulator
+                .read_chunk(
+                    start,
+                    size,
+                    UseCompression::Yes,
+                    check_input_for_correctness,
+                    &input_map,
+                )
+                .expect(&format!(
+                    "must read a chunk from {} to {} from source of decompression",
+                    start, end
+                ));
+            accumulator.write_chunk(start, UseCompression::No, output_map)?;
         }
-
-        // for chunk in &(P::TAU_POWERS_LENGTH..P::TAU_POWERS_G1_LENGTH).into_iter().chunks(P::EMPIRICAL_BATCH_SIZE) {
-        //     if let MinMax(start, end) = chunk.minmax() {
-        //         let size = end - start + 1;
-        //         accumulator.read_chunk(start, size, UseCompression::Yes, check_input_for_correctness, &input_map).expect(&format!("must read a chunk from {} to {} from source of decompression", start, end));
-        //         assert_eq!(accumulator.tau_powers_g2.len(), 0, "during rest of tau g1 generation tau g2 must be empty");
-        //         assert_eq!(accumulator.alpha_tau_powers_g1.len(), 0, "during rest of tau g1 generation alpha*tau in g1 must be empty");
-        //         assert_eq!(accumulator.beta_tau_powers_g1.len(), 0, "during rest of tau g1 generation beta*tau in g1 must be empty");
-
-        //         accumulator.write_chunk(start, UseCompression::No, output_map)?;
-
-        //     } else {
-        //         panic!("Chunk does not have a min and max");
-        //     }
-        // }
 
         Ok(())
     }
@@ -587,8 +553,8 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
         element_type: ElementType,
         output_map: &mut MmapMut,
     ) -> io::Result<()>
-    where
-        C: CurveAffine<Engine = E, Scalar = E::Fr>,
+        where
+            C: CurveAffine<Engine=E, Scalar=E::Fr>,
     {
         if index >= P::TAU_POWERS_LENGTH {
             return Ok(());
@@ -625,6 +591,7 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
         Ok(())
     }
 }
+
 impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
     /// Transforms the accumulator with a private key.
     /// Due to large amount of data in a previous accumulator even in the compressed form
@@ -642,14 +609,18 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
     ) -> io::Result<()> {
         /// Exponentiate a large number of points, with an optional coefficient to be applied to the
         /// exponent.
-        fn batch_exp<EE: Engine, C: CurveAffine<Engine = EE, Scalar = EE::Fr>>(
+        fn batch_exp<EE: Engine, C: CurveAffine<Engine=EE, Scalar=EE::Fr>>(
             bases: &mut [C],
             exp: &[C::Scalar],
             coeff: Option<&C::Scalar>,
         ) {
             assert_eq!(bases.len(), exp.len());
             let mut projective = vec![C::Projective::zero(); bases.len()];
-            let chunk_size = bases.len() / num_cpus::get();
+            let chunk_size = if bases.len() < num_cpus::get() {
+                bases.len()
+            } else {
+                bases.len() / num_cpus::get()
+            };
 
             // Perform wNAF over multiple cores, placing results into `projective`.
             crossbeam::scope(|scope| {
@@ -662,7 +633,7 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
                         let mut wnaf = Wnaf::new();
 
                         for ((base, exp), projective) in
-                            bases.iter_mut().zip(exp.iter()).zip(projective.iter_mut())
+                        bases.iter_mut().zip(exp.iter()).zip(projective.iter_mut())
                         {
                             let mut exp = *exp;
                             if let Some(coeff) = coeff {
@@ -703,44 +674,52 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
             .into_iter()
             .chunks(P::EMPIRICAL_BATCH_SIZE)
         {
-            if let MinMax(start, end) = chunk.minmax() {
-                let size = end - start + 1;
-                accumulator
-                    .read_chunk(
-                        start,
-                        size,
-                        input_is_compressed,
-                        check_input_for_correctness,
-                        &input_map,
-                    )
-                    .expect("must read a first chunk");
+            let (start, end) = match chunk.minmax() {
+                MinMaxResult::NoElements => unreachable!(),
+                MinMaxResult::OneElement(last) => (last, last),
+                MinMax(start, end) => {
+                    (start, end)
+                }
+            };
 
-                // Construct the powers of tau
-                let mut taupowers = vec![E::Fr::zero(); size];
-                let chunk_size = size / num_cpus::get();
+            let size = end - start + 1;
+            accumulator
+                .read_chunk(
+                    start,
+                    size,
+                    input_is_compressed,
+                    check_input_for_correctness,
+                    &input_map,
+                )
+                .expect("must read a first chunk");
 
-                // Construct exponents in parallel
-                crossbeam::scope(|scope| {
-                    for (i, taupowers) in taupowers.chunks_mut(chunk_size).enumerate() {
-                        scope.spawn(move || {
-                            let mut acc = key.tau.pow(&[(start + i * chunk_size) as u64]);
-
-                            for t in taupowers {
-                                *t = acc;
-                                acc.mul_assign(&key.tau);
-                            }
-                        });
-                    }
-                });
-
-                batch_exp::<E, _>(&mut accumulator.tau_powers_g1, &taupowers[0..], None);
-                batch_exp::<E, _>(&mut accumulator.tau_powers_g2, &taupowers[0..], None);
-                accumulator.write_chunk(start, compress_the_output, output_map)?;
-
-                println!("Done processing {} powers of tau", end);
+            // Construct the powers of tau
+            let mut taupowers = vec![E::Fr::zero(); size];
+            let chunk_size = if size < num_cpus::get() {
+                size
             } else {
-                panic!("Chunk does not have a min and max");
-            }
+                size / num_cpus::get()
+            };
+
+            // Construct exponents in parallel
+            crossbeam::scope(|scope| {
+                for (i, taupowers) in taupowers.chunks_mut(chunk_size).enumerate() {
+                    scope.spawn(move || {
+                        let mut acc = key.tau.pow(&[(start + i * chunk_size) as u64]);
+
+                        for t in taupowers {
+                            *t = acc;
+                            acc.mul_assign(&key.tau);
+                        }
+                    });
+                }
+            });
+
+            batch_exp::<E, _>(&mut accumulator.tau_powers_g1, &taupowers[0..], None);
+            batch_exp::<E, _>(&mut accumulator.tau_powers_g2, &taupowers[0..], None);
+            accumulator.write_chunk(start, compress_the_output, output_map)?;
+
+            println!("Done processing {} powers of tau", end);
         }
 
         Ok(())
@@ -759,20 +738,23 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
             .into_iter()
             .chunks(P::EMPIRICAL_BATCH_SIZE)
         {
-            if let MinMax(start, end) = chunk.minmax() {
-                let size = end - start + 1;
-                let mut accumulator = Self {
-                    tau_powers_g1: vec![E::G1Affine::one(); size],
-                    tau_powers_g2: vec![E::G2Affine::one(); size],
-                    hash: blank_hash(),
-                    marker: std::marker::PhantomData::<P> {},
-                };
+            let (start, end) = match chunk.minmax() {
+                MinMaxResult::NoElements => unreachable!(),
+                MinMaxResult::OneElement(last) => (last, last),
+                MinMax(start, end) => {
+                    (start, end)
+                }
+            };
+            let size = end - start + 1;
+            let mut accumulator = Self {
+                tau_powers_g1: vec![E::G1Affine::one(); size],
+                tau_powers_g2: vec![E::G2Affine::one(); size],
+                hash: blank_hash(),
+                marker: std::marker::PhantomData::<P> {},
+            };
 
-                accumulator.write_chunk(start, compress_the_output, output_map)?;
-                println!("Done processing {} powers of tau", end);
-            } else {
-                panic!("Chunk does not have a min and max");
-            }
+            accumulator.write_chunk(start, compress_the_output, output_map)?;
+            println!("Done processing {} powers of tau", end);
         }
 
         Ok(())

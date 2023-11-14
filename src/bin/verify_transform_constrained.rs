@@ -24,10 +24,10 @@ const CONTRIBUTION_IS_COMPRESSED: UseCompression = UseCompression::Yes;
 const COMPRESS_NEW_CHALLENGE: UseCompression = UseCompression::No;
 
 fn main() {
-    println!(
-        "Will verify and decompress a contribution to accumulator for 2^{} powers of tau",
-        Bn256CeremonyParameters::REQUIRED_POWER
-    );
+    // println!(
+    //     "Will verify and decompress a contribution to accumulator for 2^{} powers of tau",
+    //     Bn256CeremonyParameters::REQUIRED_POWER
+    // );
 
     // Try to load `./challenge` from disk.
     let challenge_reader = OpenOptions::new()
