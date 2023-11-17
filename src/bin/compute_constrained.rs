@@ -132,37 +132,6 @@ fn main() {
             .expect("unable to create a memory map for output")
     };
 
-    println!("Calculating previous contribution hash...");
-
-    assert!(
-        UseCompression::No == INPUT_IS_COMPRESSED,
-        "Hashing the compressed file in not yet defined"
-    );
-    let current_accumulator_hash =
-        BachedAccumulator::<Bn256, Bn256CeremonyParameters>::calculate_hash(&readable_map);
-
-    {
-        println!("`challenge` file contains decompressed points and has a hash:");
-        for line in current_accumulator_hash.as_slice().chunks(16) {
-            print!("\t");
-            for section in line.chunks(4) {
-                for b in section {
-                    print!("{:02x}", b);
-                }
-                print!(" ");
-            }
-            println!("");
-        }
-
-        (&mut writable_map[0..])
-            .write(current_accumulator_hash.as_slice())
-            .expect("unable to write a challenge hash to mmap");
-
-        writable_map
-            .flush()
-            .expect("unable to write hash to `./response`");
-    }
-
     {
         let mut challenge_hash = [0; 64];
         let memory_slice = readable_map
@@ -190,7 +159,7 @@ fn main() {
 
     // tau is a conribution to the "powers of tau", in a set of points of the form "tau^i * G"
     let tau = <Bn256 as ScalarEngine>::Fr::from_hex("0x1f8cd6a3d6ef1026a9b58c087935c9b5516c438fe5aaee2d8668b6baba96c605").unwrap();
-    let (pubkey, privkey) = keypair(&mut rng, current_accumulator_hash.as_ref(), tau);
+    let (pubkey, privkey) = keypair(&mut rng, &[41u8; 64], tau);
     println!("tau is:{}", privkey.tau);
     // Perform the transformation
     println!("Computing and writing your contribution, this could take a while...");
@@ -215,29 +184,10 @@ fn main() {
 
     writable_map.flush().expect("must flush a memory map");
 
-    // Get the hash of the contribution, so the user can compare later
-    let output_readonly = writable_map
-        .make_read_only()
-        .expect("must make a map readonly");
-    let contribution_hash =
-        BachedAccumulator::<Bn256, Bn256CeremonyParameters>::calculate_hash(&output_readonly);
-
     print!(
         "Done!\n\n\
-              Your contribution has been written to `./response`\n\n\
-              The BLAKE2b hash of `./response` is:\n"
+              Your contribution has been written to `./response`\n\n"
     );
-
-    for line in contribution_hash.as_slice().chunks(16) {
-        print!("\t");
-        for section in line.chunks(4) {
-            for b in section {
-                print!("{:02x}", b);
-            }
-            print!(" ");
-        }
-        println!("");
-    }
 
     println!("Thank you for your participation, much appreciated! :)");
 }
