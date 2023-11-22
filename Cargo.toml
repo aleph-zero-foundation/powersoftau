@@ -20,6 +20,7 @@ typenum = "1.9.0"
 byteorder = "1.1.0"
 hex-literal = "0.4.1"
 rust-crypto = "0.2"
+filesize = "0.2.0"
 
 memmap = "0.7.0"
 itertools = "0.8.0"
