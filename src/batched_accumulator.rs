@@ -606,6 +606,7 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
         compress_the_output: UseCompression,
         check_input_for_correctness: CheckForCorrectness,
         key: &PrivateKey<E>,
+        checkpoint: Option<u64>,
     ) -> io::Result<()> {
         /// Exponentiate a large number of points, with an optional coefficient to be applied to the
         /// exponent.
@@ -670,7 +671,9 @@ impl<E: Engine, P: PowersOfTauParameters> BachedAccumulator<E, P> {
 
         use itertools::MinMaxResult::MinMax;
 
-        for chunk in &(0..P::TAU_POWERS_LENGTH)
+        let checkpoint = checkpoint.unwrap_or(0) as usize;
+
+        for chunk in &(checkpoint..P::TAU_POWERS_LENGTH)
             .into_iter()
             .chunks(P::EMPIRICAL_BATCH_SIZE)
         {

@@ -184,6 +184,7 @@ fn main() {
             COMPRESS_THE_OUTPUT,
             CHECK_INPUT_CORRECTNESS,
             &privkey,
+            None,
         )
             .expect("must transform with the key");
 
@@ -202,6 +203,87 @@ fn main() {
         );
 
         println!("Thank you for your participation, much appreciated! :)");
-    } else {
+    }
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////  checkpoint  ////////////////////////////////////////////////////
+    ///////////////////////////////////////////////////////////////////////////////////////////////
+    else {
+        let response_file = env::var("RESPONSE_FILE").unwrap_or("response".to_string());
+
+        let writer = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(false)
+            .open(response_file.clone())
+            .expect(&format!("unable to open file `{response_file}`"));
+
+        let mut writable_map = unsafe {
+            MmapOptions::new()
+                .map_mut(&writer)
+                .expect("unable to create a memory map for output")
+        };
+
+        {
+            let mut challenge_hash = [0; 64];
+            let memory_slice = readable_map
+                .get(0..64)
+                .expect("must read point data from file");
+            memory_slice
+                .clone()
+                .read_exact(&mut challenge_hash)
+                .expect("couldn't read hash of challenge file from response file");
+
+            println!("`challenge` file claims (!!! Must not be blindly trusted) that it was based on the original contribution with a hash:");
+            for line in challenge_hash.chunks(16) {
+                print!("\t");
+                for section in line.chunks(4) {
+                    for b in section {
+                        print!("{:02x}", b);
+                    }
+                    print!(" ");
+                }
+                println!("");
+            }
+        }
+
+        // Construct our keypair using the RNG we created above
+
+        // tau is a conribution to the "powers of tau", in a set of points of the form "tau^i * G"
+        let tau = <Bn256 as ScalarEngine>::Fr::from_hex(
+            "0x1f8cd6a3d6ef1026a9b58c087935c9b5516c438fe5aaee2d8668b6baba96c605",
+        )
+        .unwrap();
+        let (pubkey, privkey) = keypair(&mut rng, &[41u8; 64], tau);
+        println!("tau is:{}", privkey.tau);
+        // Perform the transformation
+        println!("Computing and writing your contribution, this could take a while...");
+
+        // this computes a transformation and writes it
+        BachedAccumulator::<Bn256, Bn256CeremonyParameters>::transform(
+            &readable_map,
+            &mut writable_map,
+            INPUT_IS_COMPRESSED,
+            COMPRESS_THE_OUTPUT,
+            CHECK_INPUT_CORRECTNESS,
+            &privkey,
+            checkpoint,
+        )
+        .expect("must transform with the key");
+
+        println!("Finihsing writing your contribution to `./response`...");
+
+        // Write the public key
+        pubkey
+            .write::<Bn256CeremonyParameters>(&mut writable_map, COMPRESS_THE_OUTPUT)
+            .expect("unable to write public key");
+
+        writable_map.flush().expect("must flush a memory map");
+
+        print!(
+            "Done!\n\n\
+              Your contribution has been written to `./response`\n\n"
+        );
+
+        println!("Thank you for your participation, much appreciated! :)");
     }
 }

@@ -91,25 +91,33 @@ fn count_powers(reader: &File, path: &Path) -> usize {
     let metadata = reader.metadata().unwrap();
     let all_bytes = filesize::file_real_size_fast(path, &metadata).unwrap() as usize;
 
+    println!("File size: {}", all_bytes);
+    println!("Full size: {}", FULL_SIZE);
+
     const FULL_SIZE: usize = Bn256CeremonyParameters::CONTRIBUTION_BYTE_SIZE;
-
-    let powers_bytes = if all_bytes == FULL_SIZE {
-        all_bytes.saturating_sub(
-            Bn256CeremonyParameters::HASH_SIZE + Bn256CeremonyParameters::PUBLIC_KEY_SIZE,
-        )
-    } else {
-        println!("🔴 WARNING: response file is not full size");
-        all_bytes.saturating_sub(Bn256CeremonyParameters::HASH_SIZE)
-    };
-
     const BYTES_PER_POWER: usize = Bn256CeremonyParameters::G1_COMPRESSED_BYTE_SIZE
         + Bn256CeremonyParameters::G2_COMPRESSED_BYTE_SIZE;
 
-    let full_chunks_saved =
-        powers_bytes / (Bn256CeremonyParameters::EMPIRICAL_BATCH_SIZE * BYTES_PER_POWER);
-    let reliable_power_bytes =
-        full_chunks_saved * Bn256CeremonyParameters::EMPIRICAL_BATCH_SIZE * BYTES_PER_POWER;
-    let powers = reliable_power_bytes / BYTES_PER_POWER;
+    let powers = if all_bytes >= FULL_SIZE {
+        println!("✅ Response file is of full size");
+
+        let powers_bytes = all_bytes.saturating_sub(
+            Bn256CeremonyParameters::HASH_SIZE + Bn256CeremonyParameters::PUBLIC_KEY_SIZE,
+        );
+        powers_bytes / BYTES_PER_POWER
+    } else {
+        println!("🔴 WARNING: response file is not full size");
+
+        let powers_bytes = all_bytes.saturating_sub(Bn256CeremonyParameters::HASH_SIZE);
+        let full_chunks_saved =
+            powers_bytes / (Bn256CeremonyParameters::EMPIRICAL_BATCH_SIZE * BYTES_PER_POWER);
+        let reliable_power_bytes =
+            full_chunks_saved * Bn256CeremonyParameters::EMPIRICAL_BATCH_SIZE * BYTES_PER_POWER;
+        reliable_power_bytes / BYTES_PER_POWER
+    };
+
+    let powers = powers.min(Bn256CeremonyParameters::TAU_POWERS_LENGTH);
+
     println!(
         "There are {} powers present, which is {}% of the expected output.",
         powers,
